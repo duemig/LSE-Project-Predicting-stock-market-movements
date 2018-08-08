@@ -1,0 +1,1068 @@
+---
+title: "Midterm Assignemnt, ME314 2018"
+output: html_document
+---
+ 
+![](images/lse-logo.jpg)
+
+#### Summer School 2018 midsession examination  
+
+# ME314 Introduction to Data Science and Big Data 
+
+## Suitable for all candidates
+
+
+### Instructions to candidates  
+
+* Complete the assignment by adding your answers directly to the RMarkdown document, knitting the document, and submitting the HTML file to Moodle.   
+* Time allowed: due 19:00 on Wednesday, 8th August 2018.  
+* Submit the assignment via [Moodle](https://shortcourses.lse.ac.uk/course/view.php?id=158).
+
+### Libraries
+You will need to load the core library for the course textbook and libraries for LDA and KNN:
+```{r}
+library(ISLR)
+library(MASS)
+library(class)
+library(ggplot2)
+library(GGally)
+library(dplyr)
+library(pROC)
+library(tidyverse)
+library(knitr)
+```
+
+This question should be answered using the `Weekly` data set, which is part of the `ISLR` package. This data contains 1,089 weekly stock returns for 21 years, from the beginning of 1990 to the end of 2010.
+
+
+### Attach `Weekly` data set
+```{r}
+# Attach data set
+attach(Weekly) 
+```
+
+
+
+
+Question 1
+------------------------
+Produce some numerical and graphical summaries of the `Weekly` data. Do there appear to be any patterns?
+
+
+### Overview
+```{r}
+# Show description 
+?Weekly
+
+# Show class
+class(Weekly)
+
+# Show glimpse
+glimpse(Weekly)
+
+# Show column names
+names(Weekly)
+
+# Show head 
+head(Weekly)
+
+# Show tail
+tail(Weekly)
+```
+
+
+### Dimensions
+```{r}
+# Show dimensions
+dim(Weekly)
+
+# Show number of rows
+nrow(Weekly)
+
+# Show number of columns
+ncol(Weekly)
+```
+
+
+### Summary Statistics
+```{r}
+# Show summary
+summary(Weekly)
+
+# Plot Summary Statistics
+ggpairs(Weekly, aes(alpha = 0.1)) +
+        ggplot2::labs(title = "Summary Statistics") +
+        theme(plot.title = element_text(color="black", size=15.5, face="bold", hjust = 0.5))
+
+# Compute Correlation Matrix
+cor(Weekly[,-9])
+
+# Plot Correlation Matrix 1
+pairs(Weekly[,-9], main = "Correlation Matrix 1")
+
+# Plot Correlation Matrix 2
+ggcorr(Weekly[,-9], palette = "RdYlGn", name = "rho", 
+       label = FALSE) +
+       ggplot2::labs(title = "Correlation Matrix 2") +
+       theme(plot.title = element_text(color = "black", size = 15.5, face = "bold", hjust = 0.7))
+
+# Plot volume
+plot(Volume, main = "Average number of traded shares")
+```
+
+
+### Interpretation (Patterns in data)
+As one would expect, the correlations between the lag variables and today’s returns are virtually zero. Thus, there appears to be weak correlation between today’s returns and previous weeks’ returns. The only significant correlation is between Year and Volume. By plotting the data we observe that Volume is increasing over time. In other words, the average number of shares traded increased from 1990 to 2010.
+
+
+
+
+Question 2
+------------------------
+Use the full data set to perform a logistic regression with `Direction` as the response and the five lag variables plus `Volume` as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so, which ones?
+
+
+### Logistic Regression (LR)
+```{r}
+# Fit a logistic regression model using all data
+LR.fit <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume,
+          data = Weekly, family = binomial)
+
+# Show summary of logistic regression model
+summary(LR.fit)
+
+# Show summary of coefficients 
+summary(LR.fit)$coef
+
+# Show coefficients
+coef(LR.fit)
+
+# Show p-values
+summary(LR.fit)$coef[,4]
+```
+
+
+### Interpretation (Statistics)
+The smallest p-value of interest (neglecting the intercept) is associated with Lag2. The positive coefficient for this predictor suggests that if the market had a positive return for Lag2, then it is more likely to go up today. 
+
+The other p-values are relatively large (typical p-value cutoffs for rejecting the null hypothesis are 5% or 1%). Hence, there is no clear evidence of a real association between the other predictors and Direction.
+
+Thus, only Lag2 appears to be statistically significant.
+
+
+
+
+Question 3
+------------------------
+Compute the confusion matrix and overall fraction of correct predictions. 
+Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+    
+    
+### Probability that the market will go up
+```{r}
+# Use the fitted model to perform predictions 
+LR.prob <- predict(LR.fit, type = "response")
+
+# Print the first ten probabilities
+print(LR.prob[1:10])
+
+# Show dummy variable
+contrasts(Direction)
+```
+
+
+### Convert probabilities into class labels
+```{r}
+LR.pred <- ifelse(LR.prob > 0.5, "Up", "Down")
+```
+
+
+### Confustion matrix 
+```{r}
+# Create a confustion matrix 
+table(Direction, LR.pred, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+mean(LR.pred!=Direction)
+
+# Compute fraction of correct predictions
+mean(LR.pred==Direction)
+
+# Compute False Pos. rate (Type I error, 1-Specificity)
+430/(54+430)
+
+# Compute True Pos. rate (1-Type II error, power, sensitivity, recall)
+557/(48+557)
+
+# Compute Pos. Pred. value (Precision, 1-false discovery proportion)
+557/(430+557)
+
+# Compute Neg. Pred. value 
+54/(54+48)
+```
+
+
+### Interpretation (Confustion matrix)
+The diagonal elements of the confusion matrix indicate correct predictions, while the off-diagonals represent incorrect predictions. Hence, our model correctly predicted that the market would go up on 557 days and that it would go down on 54 days, for a total of 557 + 54 = 611 correct predictions. In this case, logistic regression **correctly predicted** the movement of the market **56.11%** of the time. Consequently, the **training error rate** equals to 100 % − 56.11 % = **43.89%**. <br />
+At first glance, it seems that the logistic regression model is working somewhat better than random guessing. However, this result is misleading because we trained and tested the model on the same set of 1,089 observations. In other words, the training error rate is considered overly optimistic and tends to underestimate the test error rate. 
+In order to better assess the accuracy of the logistic regression model, we have to fit the model using part of the data (training data), and then examine how well it predicts the held out data (testing data). This will yield a more realistic error rate, in the sense that in practice we will be interested in our model’s performance not on the data that we used to fit the model, but rather on days in the future for which the market’s movements are unknown. 
+
+
+<u> Other key measures for classification testing: </u>
+
+**False Pos. rate (Type I error, 1-Specificity):** When it is actually Down, how often does it predict Up?
+FP/N = 430/(54+430) = 88.84%
+
+**True Pos. rate (1-Type II error, power, sensitivity, recall):** When it is actually Up, how often does it predict Up?
+TP/P yes = 557/(48+557) = 92.07%
+
+**Pos. Pred. value (Precision, 1-false discovery proportion):** When it predicts Up, how often is it correct?
+TP/P* = 557/(430+557) = 56.43%
+
+**Neg Pred. value:** When it predicts Down, how often is it correct?
+TN/N*= 54/(54+48) = 52.94%
+
+
+### ROC Curve
+```{r}
+# Convert into binary classes
+LR.pred.roc <- ifelse(LR.pred == "Up", 1, 0)
+Direction.roc <- ifelse(Direction == "Up", 1, 0)
+
+# Compute ROC Curve
+LR.roc <- roc(Direction.roc, LR.pred.roc)
+
+# Plot ROC Curve
+plot(LR.roc, legacy.axes=TRUE)
+
+# Compute AUC
+auc(LR.roc)
+```
+
+
+### Interpretation (ROC curve)
+The **ROC curve** simultaneously displays two types of errors for all possible thresholds. The Figure above shows the ROC curve for the Logistic classifier on the training data. The overall performance of a classifier, summarized over all possible thresholds, is given by the **A**rea **U**nder the ROC-**C**urve (**AUC**). An ideal ROC curve will pass through the upper left corner, and therefore the larger the AUC the better the classifier. For our training data the **AUC is 0.52**. We expect a classifier that performs no better than chance to have an AUC of 0.5 (when evaluated on an independent test set not used in model training). 
+As can be observed from the figure above, varying the classifier threshold changes its true positive (**sensitivity**) and false positive  (**1-specificity**) rate.
+
+
+
+
+Question 4
+------------------------   
+Now fit the logistic regression model using a training data period from 1990 to 2008, with `Lag2` as the only predictor. 
+Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+
+
+### Split the data into training and testing data
+```{r}
+# Generate training data
+Training <- (Year < 2009)
+Training.data <- Weekly[Training,]
+
+# Show dimensions
+dim(Training.data)
+
+# Generate testing data
+Testing <- !Training
+Testing.data <- Weekly[Testing,]
+
+# Show dimensions
+dim(Testing.data)
+
+# Generate testing data for response variable
+Direction.test <- Direction[Testing]
+
+# Show dimensions
+length(Direction.test)
+```
+
+
+### Logistic Regression (LR) - Model 1
+```{r}
+# Fit a logistic regression model using training data
+LR.fit.1 <- glm(Direction ~ Lag2,
+            data = Training.data, family = binomial)
+
+# Show summary of logistic regression model
+summary(LR.fit.1)
+
+# Show summary of coefficients 
+summary(LR.fit.1)$coef
+
+# Show coefficients
+coef(LR.fit.1)
+
+# Show p-values
+summary(LR.fit.1)$coef[,4]
+```
+
+
+### Interpretation (Statistics)
+The p-value for Lag2 is approximately 4.30%. The positive coefficient for this predictor suggests that if the market had a positive return for Lag2, then it is more likely to go up today. 
+
+Typical p-value cutoffs for rejecting the null hypothesis are 5% or 1%, and thus there is some evidence of a real association between Lag2 and Direction.
+
+In other words, Lag2 appears to be statistically significant.
+
+
+### Probability that the market will go up
+```{r}
+# Use the fitted model to perform predictions for the test data
+LR.prob.1 <- predict(LR.fit.1, Testing.data, type = "response")
+
+# Print the first ten probabilities
+print(LR.prob.1[1:10])
+
+# Show dummy variable
+contrasts(Direction.test)
+```
+
+
+### Convert probabilities into class labels
+```{r}
+LR.pred.1 <- ifelse(LR.prob.1 > 0.5, "Up", "Down")
+```
+
+
+### Confustion matrix 
+```{r}
+# Create a confustion matrix 
+table(Direction.test, LR.pred.1, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LR.1 <- mean(LR.pred.1!=Direction.test); MC.LR.1
+
+# Compute fraction of correct predictions
+mean(LR.pred.1==Direction.test)
+
+# Compute False Pos. rate (Type I error, 1-Specificity)
+34/(9+34)
+
+# Compute True Pos. rate (1-Type II error, power, sensitivity, recall)
+56/(5+56)
+
+# Compute Pos. Pred. value (Precision, 1-false discovery proportion)
+56/(34+56)
+
+# Compute Neg. Pred. value 
+9/(9+5)
+```
+
+
+### Interpretation (Confustion matrix)
+In order to better assess the accuracy of the logistic regression model, we fit the model using part of the data (period from 1990 to 2008, 985 observations), and then examine how well it predicts the held out data (period from 2009 to 2010, 104 observations). 
+
+Our model correctly predicted that the market would go up on 56 days and that it would go down on 9 days, for a total of 56 + 9 = 65 correct predictions. In this case, logistic regression **correctly predicted** the movement of the market **62.50%** of the time. In other words, the **testing error rate** is 100 % − 56.11 % = **37.50%**.
+
+
+<u> Other key measures for classification testing: </u>
+
+**False Pos. rate (Type I error, 1-Specificity):** When it is actually Down, how often does it predict Up?
+FP/N = 34/(9+34) = 79.07%
+
+**True Pos. rate (1-Type II error, power, sensitivity, recall):** When it is actually Up, how often does it predict Up?
+TP/P = 56/(5+56) = 91.80%
+
+**Pos. Pred. value (Precision, 1-false discovery proportion):** When it predicts Up, how often is it correct?
+TP/P* = 56/(34+56) = 62.22%
+
+**Neg Pred. value:** When it predicts Down, how often is it correct?
+TN/N*= 9/(9+5) = 64.29%
+
+
+### ROC Curve
+```{r}
+# Convert into binary classes
+LR.pred.roc.1 <- ifelse(LR.pred.1 == "Up", 1, 0)
+Direction.roc.1 <- ifelse(Direction.test == "Up", 1, 0)
+
+# Compute ROC Curve
+LR.roc.1 <- roc(Direction.roc.1, LR.pred.roc.1)
+
+# Plot ROC Curve
+plot(LR.roc.1, legacy.axes=TRUE)
+
+# Compute AUC
+auc(LR.roc.1)
+```
+
+
+### Interpretation (ROC curve)
+The Figure above displays the **ROC curve** for the Logistic classifier on the testing data. For our data the **AUC is 0.56**, which appears promising but necessitates further investigation. 
+
+
+
+
+Question 5
+------------------------  
+Experiment with different combinations of predictors, including possible transformations and interactions, and classification methods. Report the variables, method, and associated confusion matrix that appears to provide the best results on the held out data.
+
+
+### Logistic Regression (LR) - Model 2
+```{r}
+# Fit a logistic regression model using training data
+LR.fit.2 <- glm(Direction ~ Lag1 + Lag2 + Volume, data = Training.data, family = binomial)
+
+# Use the fitted model to perform predictions for the test data
+LR.prob.2 <- predict(LR.fit.2, Testing.data, type = "response")
+
+# Convert into class labels
+LR.pred.2 <- ifelse(LR.prob.2 > 0.5, "Up", "Down")
+
+# Create a confustion matrix 
+table(Direction.test, LR.pred.2, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LR.2 <- mean(LR.pred.2!=Direction.test); MC.LR.2
+
+# Convert into binary classes
+LR.pred.roc.2 <- ifelse(LR.pred.2 == "Up", 1, 0)
+
+# Compute ROC Curve
+LR.roc.2 <- roc(Direction.roc.1, LR.pred.roc.2)
+
+# Compute AUC
+auc(LR.roc.2)
+```
+
+
+### Logistic Regression (LR) - Model 3
+```{r}
+# Fit a logistic regression model using training data
+LR.fit.3 <- glm(Direction ~ Lag1*Lag2 + Volume, data = Training.data, family = binomial)
+
+# Use the fitted model to perform predictions for the test data
+LR.prob.3 <- predict(LR.fit.3, Testing.data, type = "response")
+
+# Convert into class labels
+LR.pred.3 <- ifelse(LR.prob.3 > 0.5, "Up", "Down")
+
+# Create a confustion matrix 
+table(Direction.test, LR.pred.3, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LR.3 <- mean(LR.pred.3!=Direction.test); MC.LR.3
+
+# Convert into binary classes
+LR.pred.roc.3 <- ifelse(LR.pred.3 == "Up", 1, 0)
+
+# Compute ROC Curve
+LR.roc.3 <- roc(Direction.roc.1, LR.pred.roc.3)
+
+# Compute AUC
+auc(LR.roc.3)
+```
+
+
+### Logistic Regression (LR) - Model 4
+```{r}
+# Fit a logistic regression model using training data
+LR.fit.4 <- glm(Direction ~ Lag1 * Lag2 * Lag3 * Lag4, data = Training.data, family = binomial)
+
+# Use the fitted model to perform predictions for the test data
+LR.prob.4 <- predict(LR.fit.4, Testing.data, type = "response")
+
+# Convert into class labels
+LR.pred.4 <- ifelse(LR.prob.4 > 0.5, "Up", "Down")
+
+# Create a confustion matrix 
+table(Direction.test, LR.pred.4, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LR.4 <- mean(LR.pred.4!=Direction.test); MC.LR.4
+
+# Convert into binary classes
+LR.pred.roc.4 <- ifelse(LR.pred.4 == "Up", 1, 0)
+
+# Compute ROC Curve
+LR.roc.4 <- roc(Direction.roc.1, LR.pred.roc.4)
+
+# Compute AUC
+auc(LR.roc.4)
+```
+
+
+### Logistic Regression (LR) - Model 5
+```{r}
+# Fit a logistic regression model using training data
+LR.fit.5 <- glm(Direction ~ poly(Lag2, 2), data = Training.data, family = binomial)
+
+# Use the fitted model to perform predictions for the test data
+LR.prob.5 <- predict(LR.fit.5, Testing.data, type = "response")
+
+# Convert into class labels
+LR.pred.5 <- ifelse(LR.prob.5 > 0.5, "Up", "Down")
+
+# Create a confustion matrix 
+table(Direction.test, LR.pred.5, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LR.5 <- mean(LR.pred.5!=Direction.test); MC.LR.5
+
+# Convert into binary classes
+LR.pred.roc.5 <- ifelse(LR.pred.5 == "Up", 1, 0)
+
+# Compute ROC Curve
+LR.roc.5 <- roc(Direction.roc.1, LR.pred.roc.5)
+
+# Compute AUC
+auc(LR.roc.5)
+```
+
+
+### Linear Discriminant Analysis (LDA) - Model 1
+```{r}
+# Fit a lda model using training data
+LDA.fit.1 <- lda(Direction ~ poly(Lag2, 1) + poly(Volume, 2), data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+LDA.pred.1 <- predict(LDA.fit.1, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, LDA.pred.1, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LDA.1 <- mean(LDA.pred.1!=Direction.test); MC.LDA.1
+
+# Convert into binary classes
+LDA.pred.roc.1 <- ifelse(LDA.pred.1 == "Up", 1, 0)
+
+# Compute ROC Curve
+LDA.roc.1 <- roc(Direction.roc.1, LDA.pred.roc.1)
+
+# Compute AUC
+auc(LDA.roc.1)
+```
+
+
+### Linear Discriminant Analysis (LDA) - Model 2
+```{r}
+# Fit a lda model using training data
+LDA.fit.2 <- lda(Direction ~ Lag1*Lag2*Volume, data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+LDA.pred.2 <- predict(LDA.fit.2, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, LDA.pred.2, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LDA.2 <- mean(LDA.pred.2!=Direction.test); MC.LDA.2
+
+# Convert into binary classes
+LDA.pred.roc.2 <- ifelse(LDA.pred.2 == "Up", 1, 0)
+
+# Compute ROC Curve
+LDA.roc.2 <- roc(Direction.roc.1, LDA.pred.roc.2)
+
+# Compute AUC
+auc(LDA.roc.2)
+```
+
+
+### Linear Discriminant Analysis (LDA) - Model 3
+```{r}
+# Fit a lda model using training data
+LDA.fit.3 <- lda(Direction ~ Lag2 + Lag4, data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+LDA.pred.3 <- predict(LDA.fit.3, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, LDA.pred.3, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LDA.3 <- mean(LDA.pred.3!=Direction.test); MC.LDA.3
+
+# Convert into binary classes
+LDA.pred.roc.3 <- ifelse(LDA.pred.3 == "Up", 1, 0)
+
+# Compute ROC Curve
+LDA.roc.3 <- roc(Direction.roc.1, LDA.pred.roc.3)
+
+# Compute AUC
+auc(LDA.roc.3)
+```
+
+
+### Linear Discriminant Analysis (LDA) - Model 4
+```{r}
+# Fit a lda model using training data
+LDA.fit.4 <- lda(Direction ~  Lag1 + Lag2 + Lag4, data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+LDA.pred.4 <- predict(LDA.fit.4, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, LDA.pred.4, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LDA.4 <- mean(LDA.pred.4!=Direction.test); MC.LDA.4
+
+# Convert into binary classes
+LDA.pred.roc.4 <- ifelse(LDA.pred.4 == "Up", 1, 0)
+
+# Compute ROC Curve
+LDA.roc.4 <- roc(Direction.roc.1, LDA.pred.roc.4)
+
+# Compute AUC
+auc(LDA.roc.4)
+```
+
+
+### Linear Discriminant Analysis (LDA) - Model 5
+```{r}
+# Fit a lda model using training data
+LDA.fit.5 <- lda(Direction ~ Lag1 * Lag2 * Lag3, data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+LDA.pred.5 <- predict(LDA.fit.5, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, LDA.pred.5, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.LDA.5 <- mean(LDA.pred.5!=Direction.test); MC.LDA.5
+
+# Convert into binary classes
+LDA.pred.roc.5 <- ifelse(LDA.pred.5 == "Up", 1, 0)
+
+# Compute ROC Curve
+LDA.roc.5 <- roc(Direction.roc.1, LDA.pred.roc.5)
+
+# Compute AUC
+auc(LDA.roc.5)
+```
+
+
+### Quadratic Discriminant Analysis (QDA) - Model 1
+```{r}
+# Fit a qda model using training data
+QDA.fit.1 <- qda(Direction ~ Lag1 * Lag2 * Lag3 * Lag4 * Lag5 * Volume, data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+QDA.pred.1 <- predict(QDA.fit.1, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, QDA.pred.1, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.QDA.1 <- mean(QDA.pred.1!=Direction.test); MC.QDA.1
+
+# Convert into binary classes
+QDA.pred.roc.1 <- ifelse(QDA.pred.1 == "Up", 1, 0)
+
+# Compute ROC Curve
+QDA.roc.1 <- roc(Direction.roc.1, QDA.pred.roc.1)
+
+# Compute the AUC
+auc(QDA.roc.1)
+```
+
+
+### Quadratic Discriminant Analysis (QDA) - Model 2
+```{r}
+# Fit a qda model using training data
+QDA.fit.2 <- qda(Direction ~ Lag1 + Lag2 + Volume, data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+QDA.pred.2 <- predict(QDA.fit.2, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, QDA.pred.2, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.QDA.2 <- mean(QDA.pred.2!=Direction.test); MC.QDA.2
+
+# Convert into binary classes
+QDA.pred.roc.2 <- ifelse(QDA.pred.2 == "Up", 1, 0)
+
+# Compute ROC Curve
+QDA.roc.2 <- roc(Direction.roc.1, QDA.pred.roc.2)
+
+# Compute the AUC
+auc(QDA.roc.2)
+```
+
+
+### Quadratic Discriminant Analysis (QDA) - Model 3
+```{r}
+# Fit a qda model using training data
+QDA.fit.3 <- qda(Direction ~ Lag2 * Lag4, data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+QDA.pred.3 <- predict(QDA.fit.3, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, QDA.pred.3, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.QDA.3 <- mean(QDA.pred.3!=Direction.test); MC.QDA.3
+
+# Convert into binary classes
+QDA.pred.roc.3 <- ifelse(QDA.pred.3 == "Up", 1, 0)
+
+# Compute ROC Curve
+QDA.roc.3 <- roc(Direction.roc.1, QDA.pred.roc.3)
+
+# Compute the AUC
+auc(QDA.roc.3)
+```
+
+
+### Quadratic Discriminant Analysis (QDA) - Model 4
+```{r}
+# Fit a qda model using training data
+QDA.fit.4 <- qda(Direction ~ Lag2*Lag3, data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+QDA.pred.4 <- predict(QDA.fit.4, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, QDA.pred.4, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.QDA.4 <- mean(QDA.pred.4!=Direction.test); MC.QDA.4
+
+# Convert into binary classes
+QDA.pred.roc.4 <- ifelse(QDA.pred.4 == "Up", 1, 0)
+
+# Compute ROC Curve
+QDA.roc.4 <- roc(Direction.roc.1, QDA.pred.roc.4)
+
+# Compute the AUC
+auc(QDA.roc.4)
+```
+
+
+### Quadratic Discriminant Analysis (QDA) - Model 5
+```{r}
+# Fit a qda model using training data
+QDA.fit.5 <- qda(Direction ~ Lag2+Lag1*Lag5+Volume, data = Training.data)
+
+# Use the fitted model to perform predictions for the test data
+QDA.pred.5 <- predict(QDA.fit.5, Testing.data)$class
+
+# Create a confustion matrix 
+table(Direction.test, QDA.pred.5, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.QDA.5 <- mean(QDA.pred.5!=Direction.test); MC.QDA.5
+
+# Convert into binary classes
+QDA.pred.roc.5 <- ifelse(QDA.pred.5 == "Up", 1, 0)
+
+# Compute ROC Curve
+QDA.roc.5 <- roc(Direction.roc.1, QDA.pred.roc.5)
+
+# Compute the AUC
+auc(QDA.roc.5)
+```
+
+
+
+### KNN - Model 1
+```{r}
+# Scale Data 
+Std.data <- as.data.frame(scale(Weekly[,c(2,3,4,5,6,7)]))
+
+# Split the scaled data into training and testing data
+KNN.training.data.1 <- cbind(Std.data$Lag1 ,Std.data$Lag2, Std.data$Lag3, Std.data$Lag4, Std.data$Lag5, Std.data$Volume)[Training ,]
+
+KNN.test.data.1 <- cbind(Std.data$Lag1 ,Std.data$Lag2, Std.data$Lag3, Std.data$Lag4, Std.data$Lag5, Std.data$Volume)[!Training ,]
+
+Direction.train <- Direction[Training]
+
+# Fit a knn model using training data 
+set.seed (1)
+KNN.fit.1 <- knn(KNN.training.data.1, KNN.test.data.1, Direction.train, k=4)
+
+# Create a confustion matrix 
+table(Direction.test, KNN.fit.1, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.KNN.1 <- mean(KNN.fit.1 != Direction.test); MC.KNN.1
+
+# Convert into binary classes
+KNN.pred.roc.1 <- ifelse(KNN.fit.1 == "Up", 1, 0)
+
+# Compute ROC Curve
+KNN.roc.1 <- roc(Direction.roc.1, KNN.pred.roc.1)
+
+# Compute the AUC
+auc(KNN.roc.1)
+```
+
+
+### KNN - Model 2
+```{r}
+# Fit a knn model using training data
+set.seed (2)
+KNN.fit.2 <- knn(KNN.training.data.1, KNN.test.data.1, Direction.train, k=8)
+
+# Create a confustion matrix 
+table(Direction.test, KNN.fit.2, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.KNN.2 <- mean(KNN.fit.2 != Direction.test); MC.KNN.2
+
+# Convert into binary classes
+KNN.pred.roc.2 <- ifelse(KNN.fit.2 == "Up", 1, 0)
+
+# Compute ROC Curve
+KNN.roc.2 <- roc(Direction.roc.1, KNN.pred.roc.2)
+
+# Compute the AUC
+auc(KNN.roc.2)
+```
+
+
+### KNN - Model 3
+```{r}
+# Split the scaled data into training and testing data
+knn.training.data.3 <- cbind(Std.data$Lag1, Std.data$Lag2)[Training ,]
+
+knn.test.data.3 <- cbind(Std.data$Lag1, Std.data$Lag2)[!Training ,]
+
+# Fit a knn model using training data
+set.seed (3)
+KNN.fit.3 <- knn(knn.training.data.3, knn.test.data.3, Direction.train, k=2)
+
+# Create a confustion matrix 
+table(Direction.test, KNN.fit.3, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.KNN.3 <- mean(KNN.fit.3 != Direction.test); MC.KNN.3
+
+# Convert into binary classes
+KNN.pred.roc.3 <- ifelse(KNN.fit.3 == "Up", 1, 0)
+
+# Compute ROC Curve
+KNN.roc.3 <- roc(Direction.roc.1, KNN.pred.roc.3)
+
+# Compute the AUC
+auc(KNN.roc.3)
+```
+
+
+
+### KNN - Model 4
+```{r}
+# Split the scaled data into training and testing data
+knn.training.data.4 <- as.matrix(as.matrix(Std.data$Lag2)[Training ,])
+
+knn.test.data.4 <- as.matrix(as.matrix(Std.data$Lag2)[!Training ,])
+
+# Fit a knn model using training data
+set.seed (4)
+KNN.fit.4 <- knn(knn.training.data.4, knn.test.data.4, Direction.train, k=20)
+
+# Create a confustion matrix 
+table(Direction.test, KNN.fit.4, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.KNN.4 <- mean(KNN.fit.4 != Direction.test); MC.KNN.4
+
+# Convert into binary classes
+KNN.pred.roc.4 <- ifelse(KNN.fit.4 == "Up", 1, 0)
+
+# Compute ROC Curve
+KNN.roc.4 <- roc(Direction.roc.1, KNN.pred.roc.4)
+
+# Compute the AUC
+auc(KNN.roc.4)
+```
+
+
+### KNN - Model 5
+```{r}
+# Split the scaled data into training and testing data
+knn.training.data.5 <- cbind(Weekly$Lag1, Weekly$Lag2)[Training ,]
+
+knn.test.data.5 <- cbind(Weekly$Lag1, Weekly$Lag2)[!Training ,]
+
+# Fit a knn model using training data
+set.seed (5)
+KNN.fit.5 <- knn(knn.training.data.5, knn.test.data.5, Direction.train, k=6)
+
+# Create a confustion matrix 
+table(Direction.test, KNN.fit.5, dnn = c("True Class", "Predicted Class"))
+
+# Compute misclassification rate
+MC.KNN.5 <- mean(KNN.fit.5 != Direction.test); MC.KNN.5
+
+# Convert into binary classes
+KNN.pred.roc.5 <- ifelse(KNN.fit.5 == "Up", 1, 0)
+
+# Compute ROC Curve
+KNN.roc.5 <- roc(Direction.roc.1, KNN.pred.roc.5)
+
+# Compute the AUC
+auc(KNN.roc.5)
+```
+
+
+### Misclassification rate - Summary 
+```{r}
+# Gather Error rates
+MC.erros <- as.data.frame(cbind(c(MC.LR.1, MC.LR.2, MC.LR.3, MC.LR.4, MC.LR.5), c(MC.LDA.1, MC.LDA.2, MC.LDA.3, MC.LDA.4, MC.LDA.5), c(MC.QDA.1, MC.QDA.2, MC.QDA.3, MC.QDA.4, MC.QDA.5), c(MC.KNN.1, MC.KNN.2, MC.KNN.3, MC.KNN.4, MC.KNN.5)))
+colnames(MC.erros) <- c("LR", "LDA", "QDA", "KNN")
+
+# Plot Error rates
+MC.erros %>% gather %>% head(20)
+MC.erros %>% 
+  gather %>% 
+  ggplot(aes(key, value)) + 
+  geom_boxplot() +
+  xlab("") + 
+  ylab("Error rates") 
+```
+
+
+### Observations (Misclassification rate)
+In terms of the misclassification rate, LR and LDA were superior to the other approaches. Both LR and LDA produce (not taking into account the inclusion of transformations) linear decision boundaries. The only difference between the two methods is that LR relies on maximum likelihood, whereas LDA depends on the estimated means and variances from a normal distribution. In general, LR and LDA tend to perform well when the decision boundaries are linear (both are linear models).
+
+QDA and KNN, on the other hand, performed worse than the aforementioned methods. QDA assumes a quadratic decision boundary. Thus, QDA is more flexible than LDA and consequently possesses substantially higher variance. In other words, QDA paid a price in terms of variance that was apparently not sufficiently offset by a reduction in bias. KNN, as a non-parametric model, can capture even more complicated decision boundaries and is therefore more flexible than QDA. Logically, KNN also performed worse than the two linear models, since it probably fit a more flexible classifier than necessary. Generally, QDA may perform better when the boundaries are moderately non-linear, whereas KNN might be the preferred method when it comes to more complicated decision boundaries.
+
+
+### ROC-Curves - Summary 
+```{r}
+# Find best LR ROC-Curve
+LR.max.auc <- max(LR.roc.1$auc, LR.roc.2$auc, LR.roc.3$auc, LR.roc.4$auc, LR.roc.5$auc)           
+LR.max.curve <- if (LR.max.auc==LR.roc.1$auc) {
+    LR.roc.1
+} else if (LR.max.auc==LR.roc.2$auc) {
+    LR.roc.2
+} else if (LR.max.auc==LR.roc.3$auc) {
+    LR.roc.3
+} else if (LR.max.auc==LR.roc.4$auc) {
+    LR.roc.4
+} else {
+    LR.roc.5
+}
+
+# Find best LDA ROC-Curve
+LDA.max.auc <- max(LDA.roc.1$auc, LDA.roc.2$auc, LDA.roc.3$auc, LDA.roc.4$auc, LDA.roc.5$auc)    
+LDA.max.curve <- if (LDA.max.auc==LDA.roc.1$auc) {
+    LDA.roc.1
+} else if (LDA.max.auc==LDA.roc.2$auc) {
+    LDA.roc.2
+} else if (LDA.max.auc==LDA.roc.3$auc) {
+    LDA.roc.3
+} else if (LDA.max.auc==LDA.roc.4$auc) {
+    LDA.roc.4
+} else {
+    LDA.roc.5
+}
+
+# Find best QDA ROC-Curve
+QDA.max.auc <- max(QDA.roc.1$auc, QDA.roc.2$auc, QDA.roc.3$auc, QDA.roc.4$auc, QDA.roc.5$auc)    
+QDA.max.curve <- if (QDA.max.auc==QDA.roc.1$auc) {
+    QDA.roc.1
+} else if (QDA.max.auc==QDA.roc.2$auc) {
+    QDA.roc.2
+} else if (QDA.max.auc==QDA.roc.3$auc) {
+    QDA.roc.3
+} else if (QDA.max.auc==QDA.roc.4$auc) {
+    QDA.roc.4
+} else {
+    QDA.roc.5
+}
+
+# Find best KNN ROC-Curve
+KNN.max.auc <- max(KNN.roc.1$auc, KNN.roc.2$auc, KNN.roc.3$auc, KNN.roc.4$auc, KNN.roc.5$auc)    
+KNN.max.curve <- if (KNN.max.auc==KNN.roc.1$auc) {
+    KNN.roc.1
+} else if (KNN.max.auc==KNN.roc.2$auc) {
+    KNN.roc.2
+} else if (KNN.max.auc==KNN.roc.3$auc) {
+    KNN.roc.3
+} else if (KNN.max.auc==KNN.roc.4$auc) {
+    KNN.roc.4
+} else {
+    KNN.roc.5
+}
+
+# Plot best ROC Curves
+plot(LR.max.curve, col="blue", legacy.axes=TRUE)
+lines(LDA.max.curve, col="red")
+lines(QDA.max.curve, col="green")
+lines(KNN.max.curve, col="orange")
+legend(1.3, 1, legend=c("LR", "LDA", "QDA", "KNN"), col=c("blue", "red", "green", "orange"), lty=1:1, cex=0.9)
+```
+
+
+### Observations (ROC-Curves)
+The figure above depicts the best ROC-Curve for each method (LR, LDA, QDA and KNN). 
+
+Recall that: <br />
+- ROC Curves show the tradeoff between sensitivity and specificity (any increase in sensitivity will be accompanied by a decrease in specificity) <br />
+- The closer the curve follows the left-hand border, the more accurate the model <br />
+- The closer the curve comes to the 45-degree diagonal of the ROC space, the less accurate the model <br />
+- The area under the curve is a measure of the usefulness of a model <br />
+- **False Pos. rate (Type I error, 1-Specificity):** When it is actually Down, how often does it predict Up? --> FP/N <br />
+- **True Pos. rate (1-Type II error, power, sensitivity, recall):** When it is actually Up, how often does it predict Up? --> TP/P <br />
+
+
+In the following we analyze the model with the highest AUC for each approach
+
+The classification measures for our models can be summarized as follows:
+
+LR
+AUC: 56.37%
+1-Specificity: 34/(9+34) = 79.07%
+sensitivity: 56/(5+56) = 91.80%
+
+LDA
+AUC: 56.02%
+1-Specificity: 35/(8+35) = 81.40%
+sensitivity: 57/(4+57) = 93.44%
+
+QDA
+AUC: 60.43%
+1-Specificity: 28/(15+28) = 65.12%
+sensitivity: 27/(34+27) = 44.26%
+
+KNN 
+AUC: 58.10%
+1-Specificity: 26/(17+26) = 60.47%
+sensitivity: 27/(34+27) = 44.26%
+
+```{r}
+# Gather data
+Roc.summary <- matrix(c("AUC", "1-Specificity", "sensitivity", "56.37%", "79.07%", "91.80%", "56.02%", "81.40%", "93.44%", "60.43%", "65.12%",  "44.26%", "58.10%", "60.47%", "44.26%"), nrow = 3, ncol = 5) 
+colnames(Roc.summary) <- c("Measure", "LR", "LDA", "QDA", "KNN")
+
+# Produce table
+kable(Roc.summary, 
+      caption="Decision Matrix", 
+      align = c("c", "r"))
+```
+
+LR and LDA possess high sensitivities and thus a high ability to correctly classify Up moves. However, the higher sensitivities are accompanied by a decrease in specificities. Therefore when the market is actually going Down, they often tend to predict an Up move. Hence, both LR and LDA tend to predict more Up movements compared to the other two non-linear models (LR = 90 and LDA = 92 vs. QDA = 55 and KNN = 53)
+
+QDA and KNN have considerably lower sensitivities compared to the linear models and therefore a lower probability to correctly classify Up moves. However, this time the lower sensitivities are accompanied by an increase in specificities. Therefore when the market is actually going Down, they are less likely to predict Up moves. Hence, both QDA and KNN tend to predict more Down movements compared to the other two non-linear models (LR = 14 and LDA = 12 vs. QDA = 49 and KNN = 51)
+
+
+### Conclusion
+In conclusion, as observed above, LR and LDA tend to predict more Up movements compared to QDA and KNN. Since the market increased from the beginning of 1990 to the end of 2010, one can argue that it is not surprising that LR and LDA outperformed the other two approaches. 
+
+
+### Final Remarks
+Along the way we experimented with 20 different combinations of predictors (including possible transformations, interactions and classification methods). Nevertheless, in our setting with six variables, the number of potential subsets is virtually exhaustless. Thus, in praxis, we make use of selection algorithms that perform best subset selection. The following r-code provides an example of an algorithm that automatically generates all possible models (under constraints set by the user) with the specified response and explanatory variables, in order to find the best models in terms of some Information Criterion (AIC, AICc or BIC) for Logistic Regression.
+
+```{r}
+### Logistic Regression
+##    Perform best sub-set selection
+#       glmulti.logistic.aic <-
+#          glmulti(Direction ~ ., data = Weekly,
+#          level = 2,               # No Interaction considered
+#          method = "d",            # Exhaustive approach
+#          crit = "aic",            # AIC as criteria
+#          confsetsize = 5,         # Keep 5 best models
+#          plotty = F, report = F,  # No plot or interim reports
+#          fitfunction = "glm",     # glm function
+#          family = binomial)       # binomial family for logistic regression
+# glmulti.logistic.aic
+# summary(glmulti.logistic.aic@objects[[1]])
+```
