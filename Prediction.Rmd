@@ -10,13 +10,6 @@ output: html_document
 
 ## Suitable for all candidates
 
-
-### Instructions to candidates  
-
-* Complete the assignment by adding your answers directly to the RMarkdown document, knitting the document, and submitting the HTML file to Moodle.   
-* Time allowed: due 19:00 on Wednesday, 8th August 2018.  
-* Submit the assignment via [Moodle](https://shortcourses.lse.ac.uk/course/view.php?id=158).
-
 ### Libraries
 You will need to load the core library for the course textbook and libraries for LDA and KNN:
 ```{r}
