@@ -1,4 +1,4 @@
-# Predicting-stock-market-movements-using-machine-learning
+# LSE Project: Predicting stock market movements using machine learning tools
 
 Introduction:
 Predicting stock market movements 
