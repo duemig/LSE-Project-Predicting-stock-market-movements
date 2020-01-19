@@ -4,8 +4,8 @@ Introduction:
 Predicting stock market movements 
 
 Methods:
-Logistic Regression, Linear Discriminant Analysis, Quadratic Discriminant Analysis and 
-K-Nearest Neighbors
+Logistic regression, Linear discriminant analysis, Quadratic discriminant analysis and 
+K-nearest neighbors
 
 Programming language: 
 R
