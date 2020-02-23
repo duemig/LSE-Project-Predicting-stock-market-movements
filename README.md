@@ -1,7 +1,7 @@
 # LSE Project: Predicting stock market movements 
 
 Introduction:
-Predicting stock market movements 
+In this project, we predict the stock market movements using different machine learning tools.
 
 Methods:
 Logistic regression, Linear discriminant analysis, Quadratic discriminant analysis and 
